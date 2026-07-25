@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# VSQ plus+ assets are kept locally only because their original-file redistribution is restricted.
+sound/enviroment/
+sound/flow/down/VSQSE_1094_waterfal_01.mp3
