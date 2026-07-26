@@ -79,8 +79,8 @@ export function initializeAnalytics(): void {
   }
 
   window.dataLayer = window.dataLayer ?? [];
-  window.gtag = (...args) => {
-    window.dataLayer?.push(args);
+  window.gtag = function (..._args) {
+    window.dataLayer?.push(arguments);
   };
 
   appendGoogleAnalyticsScript(measurementId);
