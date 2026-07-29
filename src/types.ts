@@ -76,6 +76,7 @@ export interface Player {
 export interface GameState {
   running: boolean;
   finished: boolean;
+  paused: boolean;
   pointerQueued: boolean;
   time: number;
   cameraY: number;
@@ -95,10 +96,11 @@ export interface GameState {
   currentBoost: CurrentBoost;
 }
 
-// 左右入力の押下状態。クリック/タップは即時コールバックで処理する。
+// キーボードの左右入力と、端末傾斜による連続入力。
 export interface InputState {
   left: boolean;
   right: boolean;
+  tilt: number;
 }
 
 // ステージ上に存在する動的オブジェクトの集合。
@@ -138,6 +140,8 @@ export interface AudioState {
   enabled: boolean;
   activeFlow: HTMLAudioElement | null;
   lastPlayedAt: WeakMap<HTMLAudioElement, number>;
+  bgmVolume: number;
+  sfxVolume: number;
 }
 
 // 音声生成時に指定する初期設定。

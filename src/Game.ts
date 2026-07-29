@@ -40,10 +40,24 @@ if (!context) {
 
 const ctx = context;
 
+const gameShell = requireElement<HTMLElement>("gameShell");
 const overlay = requireElement<HTMLDivElement>("overlay");
 const startButton = requireElement<HTMLButtonElement>("startButton");
 const restartButton = requireElement<HTMLButtonElement>("restartButton");
+const pauseButton = requireElement<HTMLButtonElement>("pauseButton");
+const audioSettingsButton = requireElement<HTMLButtonElement>("audioSettingsButton");
+const resultAudioSettingsButton = requireElement<HTMLButtonElement>("resultAudioSettingsButton");
+const audioSettingsDialog = requireElement<HTMLDialogElement>("audioSettingsDialog");
+const audioSettingsKicker = requireElement<HTMLElement>("audioSettingsKicker");
+const audioSettingsTitle = requireElement<HTMLElement>("audioSettingsTitle");
+const audioSettingsCloseButton = requireElement<HTMLButtonElement>("audioSettingsCloseButton");
+const pauseResumeButton = requireElement<HTMLButtonElement>("pauseResumeButton");
 const goalBanner = requireElement<HTMLDivElement>("resultBanner");
+const tiltHint = requireElement<HTMLElement>("tiltHint");
+const bgmVolumeInput = requireElement<HTMLInputElement>("bgmVolume");
+const bgmVolumeValue = requireElement<HTMLOutputElement>("bgmVolumeValue");
+const sfxVolumeInput = requireElement<HTMLInputElement>("sfxVolume");
+const sfxVolumeValue = requireElement<HTMLOutputElement>("sfxVolumeValue");
 const resultKicker = requireElement<HTMLElement>("resultKicker");
 const resultTitle = requireElement<HTMLElement>("resultTitle");
 const resultSummary = requireElement<HTMLElement>("resultSummary");
@@ -80,6 +94,7 @@ const PULSE_COOLDOWN_SECONDS = 0.14;
 const MAX_TILT_ANGLE = Math.PI * 0.26;
 const TURN_ACCELERATION = 4.4;
 const MAX_ROTATION_SPEED = 1.7;
+const AUDIO_SETTINGS_STORAGE_KEY = "jellyfish-climb-audio-settings-v1";
 
 // Licensed audio is loaded as-is. Do not transform, rewrite, or derive new audio files.
 const SOUND_FILES = {
@@ -93,6 +108,19 @@ const SOUND_FILES = {
 };
 
 type SoundKey = keyof typeof SOUND_FILES;
+type AudioChannel = "bgm" | "sfx";
+
+const SOUND_BASE_VOLUMES: Record<SoundKey, number> = {
+  ambient: 0.16,
+  button: 0.42,
+  count: 0.3,
+  flowDown: 0.14,
+  flowUp: 0.2,
+  pulseNormal: 0.32,
+  pulsePerfect: 0.36,
+};
+
+const BGM_SOUND_KEYS = new Set<SoundKey>(["ambient", "flowDown", "flowUp"]);
 
 /**
  * 音声ファイルからHTMLAudioElementを作成する。
@@ -107,24 +135,27 @@ function createSound(src: string, { loop = false, volume = 0.5 }: SoundOptions =
 }
 
 const sounds: Record<SoundKey, HTMLAudioElement> = {
-  ambient: createSound(SOUND_FILES.ambient, { loop: true, volume: 0.16 }),
-  button: createSound(SOUND_FILES.button, { volume: 0.42 }),
-  count: createSound(SOUND_FILES.count, { volume: 0.3 }),
-  flowDown: createSound(SOUND_FILES.flowDown, { loop: true, volume: 0.14 }),
-  flowUp: createSound(SOUND_FILES.flowUp, { loop: true, volume: 0.2 }),
-  pulseNormal: createSound(SOUND_FILES.pulseNormal, { volume: 0.32 }),
-  pulsePerfect: createSound(SOUND_FILES.pulsePerfect, { volume: 0.36 }),
+  ambient: createSound(SOUND_FILES.ambient, { loop: true, volume: SOUND_BASE_VOLUMES.ambient }),
+  button: createSound(SOUND_FILES.button, { volume: SOUND_BASE_VOLUMES.button }),
+  count: createSound(SOUND_FILES.count, { volume: SOUND_BASE_VOLUMES.count }),
+  flowDown: createSound(SOUND_FILES.flowDown, { loop: true, volume: SOUND_BASE_VOLUMES.flowDown }),
+  flowUp: createSound(SOUND_FILES.flowUp, { loop: true, volume: SOUND_BASE_VOLUMES.flowUp }),
+  pulseNormal: createSound(SOUND_FILES.pulseNormal, { volume: SOUND_BASE_VOLUMES.pulseNormal }),
+  pulsePerfect: createSound(SOUND_FILES.pulsePerfect, { volume: SOUND_BASE_VOLUMES.pulsePerfect }),
 };
 
 const audioState: AudioState = {
   enabled: false,
   activeFlow: null,
   lastPlayedAt: new WeakMap(),
+  bgmVolume: 1,
+  sfxVolume: 1,
 };
 
 const state: GameState = {
   running: false,
   finished: false,
+  paused: false,
   pointerQueued: false,
   time: 0,
   cameraY: 0,
@@ -147,6 +178,7 @@ const state: GameState = {
 const input: InputState = {
   left: false,
   right: false,
+  tilt: 0,
 };
 
 const world: WorldState = {
@@ -161,17 +193,204 @@ const world: WorldState = {
 const player = createPlayer();
 
 /**
+ * 保存値やrange入力を0〜1の音量係数へ正規化する。
+ */
+function clampAudioVolume(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * 各音源の調整済み基準音量へ、ユーザー設定のチャンネル音量を掛ける。
+ * 100%でも既存のミックスバランスを変えない。
+ */
+function applyAudioVolumes(): void {
+  for (const key of Object.keys(sounds) as SoundKey[]) {
+    const channelVolume = BGM_SOUND_KEYS.has(key) ? audioState.bgmVolume : audioState.sfxVolume;
+    sounds[key].volume = clampAudioVolume(SOUND_BASE_VOLUMES[key] * channelVolume);
+  }
+}
+
+/**
+ * 音量スライダーと表示値を現在の設定へ同期する。
+ */
+function updateAudioSettingsUi(): void {
+  const bgmPercent = Math.round(audioState.bgmVolume * 100);
+  const sfxPercent = Math.round(audioState.sfxVolume * 100);
+
+  bgmVolumeInput.value = String(bgmPercent);
+  bgmVolumeValue.value = `${bgmPercent}%`;
+  sfxVolumeInput.value = String(sfxPercent);
+  sfxVolumeValue.value = `${sfxPercent}%`;
+}
+
+/**
+ * ブラウザへ保存した音量を読み込む。破損値や利用不可環境では初期値を使う。
+ */
+function loadAudioSettings(): void {
+  try {
+    const storedValue = window.localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY);
+    if (!storedValue) {
+      return;
+    }
+
+    const parsedValue = JSON.parse(storedValue) as Partial<{
+      bgmVolume: number;
+      sfxVolume: number;
+    }>;
+
+    if (typeof parsedValue.bgmVolume === "number") {
+      audioState.bgmVolume = clampAudioVolume(parsedValue.bgmVolume);
+    }
+    if (typeof parsedValue.sfxVolume === "number") {
+      audioState.sfxVolume = clampAudioVolume(parsedValue.sfxVolume);
+    }
+  } catch {
+    // localStorage can be unavailable in privacy modes; audio should still work.
+  }
+}
+
+/**
+ * プレイヤーが変更した音量を次回アクセス用に保存する。
+ */
+function saveAudioSettings(): void {
+  try {
+    window.localStorage.setItem(
+      AUDIO_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        bgmVolume: audioState.bgmVolume,
+        sfxVolume: audioState.sfxVolume,
+      })
+    );
+  } catch {
+    // Ignore storage failures without affecting gameplay.
+  }
+}
+
+/**
+ * 0〜100のスライダー入力を対応する音声チャンネルへ反映する。
+ */
+function setAudioChannelVolume(channel: AudioChannel, percent: number): void {
+  const volume = clampAudioVolume(percent / 100);
+  if (channel === "bgm") {
+    audioState.bgmVolume = volume;
+  } else {
+    audioState.sfxVolume = volume;
+  }
+
+  applyAudioVolumes();
+  updateAudioSettingsUi();
+}
+
+let resumeAfterAudioSettings = false;
+
+/**
+ * 音量設定を開く。プレイ中のボタンから開いた場合だけゲーム進行を一時停止する。
+ * BGMは止めず、スライダー変更をその場で聞き比べられるようにする。
+ */
+function openAudioSettings(pauseGameplay: boolean): void {
+  if (audioSettingsDialog.open) {
+    return;
+  }
+
+  resumeAfterAudioSettings = pauseGameplay && state.running && !state.finished;
+  audioSettingsDialog.classList.toggle("is-pause-menu", resumeAfterAudioSettings);
+  audioSettingsKicker.textContent = resumeAfterAudioSettings
+    ? "Game paused"
+    : "Playback volume";
+  audioSettingsTitle.textContent = resumeAfterAudioSettings
+    ? "Paused"
+    : "Sound Settings";
+  audioSettingsCloseButton.setAttribute(
+    "aria-label",
+    resumeAfterAudioSettings ? "Resume game" : "Close sound settings"
+  );
+  pauseResumeButton.hidden = !resumeAfterAudioSettings;
+
+  if (resumeAfterAudioSettings) {
+    state.paused = true;
+    state.pointerQueued = false;
+    input.left = false;
+    input.right = false;
+    input.tilt = 0;
+    pauseButton.hidden = true;
+  }
+
+  audioSettingsDialog.showModal();
+}
+
+/**
+ * プレイ中の一時停止から開いた設定だけ、閉じた時に自動で再開する。
+ */
+function handleAudioSettingsClosed(): void {
+  if (resumeAfterAudioSettings && state.running && !state.finished) {
+    state.paused = false;
+    input.left = false;
+    input.right = false;
+    input.tilt = 0;
+    pauseButton.hidden = false;
+  }
+
+  resumeAfterAudioSettings = false;
+  audioSettingsDialog.classList.remove("is-pause-menu");
+  audioSettingsKicker.textContent = "Playback volume";
+  audioSettingsTitle.textContent = "Sound Settings";
+  audioSettingsCloseButton.setAttribute("aria-label", "Close sound settings");
+  pauseResumeButton.hidden = true;
+}
+
+/**
+ * 音量設定の初期化とUIイベント登録を一度だけ行う。
+ */
+function initializeAudioSettings(): void {
+  loadAudioSettings();
+  applyAudioVolumes();
+  updateAudioSettingsUi();
+
+  bgmVolumeInput.addEventListener("input", () => {
+    setAudioChannelVolume("bgm", Number(bgmVolumeInput.value));
+  });
+  bgmVolumeInput.addEventListener("change", saveAudioSettings);
+
+  sfxVolumeInput.addEventListener("input", () => {
+    setAudioChannelVolume("sfx", Number(sfxVolumeInput.value));
+  });
+  sfxVolumeInput.addEventListener("change", saveAudioSettings);
+
+  audioSettingsButton.addEventListener("click", () => {
+    openAudioSettings(false);
+  });
+  resultAudioSettingsButton.addEventListener("click", () => {
+    openAudioSettings(false);
+  });
+  pauseButton.addEventListener("click", () => {
+    openAudioSettings(true);
+  });
+  pauseResumeButton.addEventListener("click", () => {
+    audioSettingsDialog.close();
+  });
+  audioSettingsDialog.addEventListener("close", handleAudioSettingsClosed);
+}
+
+/**
  * 最初のユーザー操作後に音声を有効化する。
  * ブラウザの自動再生制限に合わせ、操作前はloadだけに留める。
  */
 function unlockAudio(): void {
-  if (audioState.enabled) {
-    return;
+  if (!audioState.enabled) {
+    audioState.enabled = true;
+    for (const audio of Object.values(sounds)) {
+      audio.load();
+    }
   }
 
-  audioState.enabled = true;
-  for (const audio of Object.values(sounds)) {
-    audio.load();
+  // センサー許可後の非同期開始で自動再生が拒否されても、次のタップでループ音を復帰する。
+  if (state.running) {
+    playLoop(sounds.ambient);
+    playLoop(audioState.activeFlow);
   }
 }
 
@@ -278,9 +497,12 @@ function updateFlowAudio(currentName: CurrentBoost): void {
  * スコア・タイマー・オブジェクト生成・表示状態をここでまとめてリセットする。
  */
 function resetGame(): void {
+  gameShell.classList.remove("is-menu", "is-result");
   Object.assign(player, createPlayer());
+  world.width = getPlayableWorldWidth();
   state.running = true;
   state.finished = false;
+  state.paused = false;
   state.pointerQueued = true;
   state.time = 0;
   state.cameraY = 0;
@@ -295,13 +517,14 @@ function resetGame(): void {
   state.pulseGlow = 0;
   state.currentSwitchTimer = state.currentSwitchInterval;
   state.currentBoost = "-";
-  world.currents = buildCurrents(state.targetAltitude);
-  world.plankton = buildPlankton();
+  world.currents = buildCurrents(state.targetAltitude, world.width);
+  world.plankton = buildPlankton(world.width);
   world.bubbles = [];
   world.scorePopups = [];
   world.motes = buildMotes(world.width);
   overlay.hidden = true;
   goalBanner.hidden = true;
+  pauseButton.hidden = false;
   goalBanner.classList.remove("is-new-record");
   resetResultScoreboard();
   updateHud();
@@ -315,9 +538,26 @@ function resetGame(): void {
 function resizeCanvas(): void {
   const dpr = window.devicePixelRatio || 1;
   const { width, height } = canvas.getBoundingClientRect();
-  canvas.width = Math.round(width * dpr);
-  canvas.height = Math.round(height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const pixelWidth = Math.round(width * dpr);
+  const pixelHeight = Math.round(height * dpr);
+
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  if (!state.running) {
+    world.width = getPlayableWorldWidth();
+  }
+}
+
+/**
+ * 横方向へカメラ追従しないため、操作可能幅を実際のcanvas表示幅に合わせる。
+ * PCでは従来の最大幅を維持し、スマホではクラゲが画面外へ抜けないようにする。
+ */
+function getPlayableWorldWidth(): number {
+  return Math.min(1400, Math.max(320, canvas.clientWidth));
 }
 
 /**
@@ -434,6 +674,8 @@ function resetResultScoreboard(): void {
   resultTotalScore.classList.remove("is-counting");
   resultPlanktonRow.classList.remove("is-active", "is-done");
   resultTimeRateRow.classList.remove("is-active", "is-done");
+  resultSummary.hidden = true;
+  resultSummary.textContent = "";
   updateResultRecord();
 }
 
@@ -468,7 +710,8 @@ function startResultScoreAnimation(): void {
     resultTimeRate.textContent = "-";
     setResultScoreValues(0, 0);
     updateResultRecord();
-    resultSummary.textContent = "Click to retry";
+    resultSummary.hidden = true;
+    resultSummary.textContent = "";
     return;
   }
 
@@ -484,6 +727,7 @@ function startResultScoreAnimation(): void {
   resultPlanktonRow.classList.remove("is-done");
   resultTimeRateRow.classList.remove("is-active", "is-done");
   updateResultRecord();
+  resultSummary.hidden = false;
   resultSummary.textContent = state.isNewRecord
     ? "New BestScore! Press Enter to skip"
     : "Press Enter to skip";
@@ -505,9 +749,8 @@ function finishResultScoreAnimation(): void {
   resultTimeRateRow.classList.remove("is-active");
   resultTimeRateRow.classList.add("is-done");
   updateResultRecord();
-  resultSummary.textContent = state.isNewRecord
-    ? "New BestScore! Click to retry"
-    : "Click to retry";
+  resultSummary.hidden = true;
+  resultSummary.textContent = "";
 }
 
 /**
@@ -562,6 +805,8 @@ function finishGame(cleared: boolean): void {
 
   state.running = false;
   state.finished = true;
+  state.paused = false;
+  pauseButton.hidden = true;
 
   // 結果種別ごとに、スコア内訳とリザルト文言を確定する。
   if (cleared) {
@@ -614,6 +859,7 @@ function finishGame(cleared: boolean): void {
 
   // 音と画面表示を終了状態へ切り替え、スコア加算演出を開始する。
   stopGameAudio();
+  gameShell.classList.add("is-result");
   goalBanner.classList.toggle("is-new-record", state.isNewRecord);
   updateResultRecord();
   goalBanner.hidden = false;
@@ -626,6 +872,10 @@ function finishGame(cleared: boolean): void {
  * プレイ中は次フレームで拍動し、停止中はゲーム開始やリトライに使う。
  */
 function queuePulse(): void {
+  if (state.paused) {
+    return;
+  }
+
   unlockAudio();
 
   if (!state.running) {
@@ -697,6 +947,12 @@ function performPulse(): void {
 function update(deltaTime: number): void {
   const dt = Math.min(deltaTime, 0.033);
 
+  // 音量設定中は描画だけを保ち、タイマー・物理・入力処理を止める。
+  if (state.paused) {
+    render();
+    return;
+  }
+
   // 停止中はリザルト加算演出だけを進め、ゲーム内の物理は止める。
   if (!state.running) {
     updateResultScoreAnimation(dt);
@@ -731,7 +987,8 @@ function update(deltaTime: number): void {
   }
 
   // 左右入力は直接移動ではなく、クラゲの傾きと少しの横流れに変換する。
-  const steer = Number(input.right) - Number(input.left);
+  const keyboardSteer = Number(input.right) - Number(input.left);
+  const steer = keyboardSteer !== 0 ? keyboardSteer : input.tilt;
   if (steer !== 0) {
     player.angularVelocity += steer * TURN_ACCELERATION * dt;
     if (player.vx * steer < SIDE_DRIFT_MAX_SPEED) {
@@ -1249,13 +1506,14 @@ export function initializeGame(): void {
   }
 
   initialized = true;
+  initializeAudioSettings();
 
   const inputController = new InputController({
     input,
     canvas,
     startButton,
     restartButton,
-    resultBanner: goalBanner,
+    tiltHint,
     onPulse: queuePulse,
     onSkipResult: () => {
       if (!resultAnimation.active) {
@@ -1269,15 +1527,23 @@ export function initializeGame(): void {
     },
   });
 
-  window.addEventListener("resize", () => {
+  const handleCanvasResize = (): void => {
     resizeCanvas();
     render();
-  });
+  };
+
+  window.addEventListener("resize", handleCanvasResize);
+  window.visualViewport?.addEventListener("resize", handleCanvasResize);
+
+  if (typeof ResizeObserver !== "undefined") {
+    const canvasResizeObserver = new ResizeObserver(handleCanvasResize);
+    canvasResizeObserver.observe(canvas);
+  }
 
   inputController.bind();
   resizeCanvas();
-  world.currents = buildCurrents(state.targetAltitude);
-  world.plankton = buildPlankton();
+  world.currents = buildCurrents(state.targetAltitude, world.width);
+  world.plankton = buildPlankton(world.width);
   world.motes = buildMotes(world.width);
   updateHud();
   render();
