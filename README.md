@@ -13,7 +13,7 @@ The game is built as a small static web app with Vanilla TypeScript and Vite. It
 - Reach the goal before the time limit.
 - When cleared, remaining time applies a 100%–300% rate to the plankton score.
 - A time-up game over awards zero score.
-- BestScore is tracked in memory only for the current session.
+- BestScore is tracked in memory for the current page session.
 
 ## Tech Stack
 
@@ -30,12 +30,21 @@ The game is built as a small static web app with Vanilla TypeScript and Vite. It
 ```text
 .
 +-- index.html
++-- play/
++-- ja/
++-- how-to-play/ and other information pages
 +-- styles.css
++-- site.css
++-- site.config.json
 +-- sound/
 +-- scripts/
 |   +-- copy-sound-assets.mjs
++|   +-- generate-seo-assets.mjs
++|   +-- validate-site.mjs
 +-- src/
 |   +-- main.ts
++|   +-- site.ts
++|   +-- ads.ts
 |   +-- Game.ts
 |   +-- Player.ts
 |   +-- Obstacle.ts
@@ -50,6 +59,25 @@ The game is built as a small static web app with Vanilla TypeScript and Vite. It
 ```
 
 Audio files in `sound/` are copied to `dist/sound/` during build. Do not edit, transform, or derive new audio files from these assets unless the license allows it.
+
+The game does not expose a download button or link to its local audio files. Because a browser must fetch client-side audio to play it, static hosting cannot make those files technically impossible to retrieve. Generated `robots.txt` asks search crawlers not to index the deployed `/sound/` path. See `docs/AUDIO_PUBLICATION_AUDIT.md` for the current publication review.
+
+## Site and SEO configuration
+
+The English site is the default locale and Japanese pages live below `/ja/`. The playable game is isolated at `/play/`, so information pages do not load the game bundle.
+
+- Set `SITE_URL` to the final public origin and base path, without a trailing slash. Canonical URLs, hreflang links, `robots.txt`, and `sitemap.xml` are generated from this single value.
+- Set `VITE_GOOGLE_SITE_VERIFICATION` to the Search Console HTML-tag verification value when needed.
+- Set `VITE_GA_MEASUREMENT_ID` to enable Google Analytics. When empty, Analytics is not loaded.
+- `VITE_ADSENSE_PUBLISHER_ID` is reserved for a future approved AdSense account. No advertising script or `ads.txt` is generated yet.
+
+Copy `.env.example` to a local `.env` for development values, or use GitHub Actions repository variables for deployment. The unpublished Development Story pages intentionally remain `noindex` and outside `sitemap.xml` until creator-approved content is available.
+
+Analytics uses GA4's automatic `page_view` plus a compact game funnel:
+`play_intent`, `game_entry`, `game_start`, `game_first_input`,
+`game_progress`, and `game_over`. See
+[`docs/ANALYTICS_REPORTING.md`](docs/ANALYTICS_REPORTING.md) for event
+parameters and the GA4 custom-definition setup needed for reporting.
 
 ## Audio Credits
 

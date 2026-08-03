@@ -29,10 +29,12 @@ export function buildCurrents(targetAltitude: number, worldWidth = 1400): Curren
  * 既存の水流を作り直さず、方向・横流れ・強さだけを更新する。
  * 位置を維持することで、見えている水流が突然消える違和感を避ける。
  */
-export function switchCurrentDirections(currents: Current[]): void {
+export function switchCurrentDirections(currents: Current[], worldWidth = 1400): void {
+  const horizontalScale = Math.min(1, Math.max(0.65, worldWidth / 900));
+
   for (const current of currents) {
     current.direction *= -1;
-    current.drift = Math.random() * 56 - 28;
+    current.drift = (Math.random() * 56 - 28) * horizontalScale;
     current.strength = 30 + Math.random() * 28;
   }
 }
@@ -41,11 +43,15 @@ export function switchCurrentDirections(currents: Current[]): void {
  * スコア源となるプランクトンをコース全体に配置する。
  * baseX/baseYを持たせて、ゲーム中はそこを中心に泳がせる。
  */
-export function buildPlankton(worldWidth = 1400): Plankton[] {
+export function buildPlankton(worldWidth = 1400, responsiveScale = 1): Plankton[] {
   const plankton: Plankton[] = [];
   const driftScale = Math.min(1, Math.max(0.45, worldWidth / 700));
   const maximumDrift = 52 * driftScale;
-  const courseHalfWidth = Math.max(30, worldWidth / 2 - 70 - maximumDrift);
+  const sidePadding = 70 * responsiveScale;
+  const courseHalfWidth = Math.max(
+    30,
+    worldWidth / 2 - sidePadding - maximumDrift
+  );
   const routeScale = Math.min(1, courseHalfWidth / 510);
 
   for (let index = 0; index < 58; index += 1) {

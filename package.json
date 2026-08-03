@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/copy-sound-assets.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/copy-sound-assets.mjs && node scripts/generate-seo-assets.mjs && node scripts/validate-site.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate:site": "node scripts/validate-site.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

@@ -1,0 +1,29 @@
+{
+  "siteName": "Jellyfish Climb",
+  "defaultSiteUrl": "https://wt8812.github.io/jellyfish-climb",
+  "indexableRoutes": [
+    "/",
+    "/play/",
+    "/how-to-play/",
+    "/about/",
+    "/updates/",
+    "/faq/",
+    "/privacy/",
+    "/terms/",
+    "/contact/",
+    "/ja/",
+    "/ja/play/",
+    "/ja/how-to-play/",
+    "/ja/about/",
+    "/ja/updates/",
+    "/ja/faq/",
+    "/ja/privacy/",
+    "/ja/terms/",
+    "/ja/contact/"
+  ],
+  "noindexRoutes": [
+    "/development-story/",
+    "/ja/development-story/",
+    "/404.html"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Jellyfish Climb",
+  "short_name": "Jellyfish",
+  "description": "A browser game about timing pulses, steering a jellyfish, collecting plankton, and reaching the goal.",
+  "start_url": "./",
+  "display": "browser",
+  "background_color": "#041529",
+  "theme_color": "#0a3052",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

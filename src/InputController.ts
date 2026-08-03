@@ -1,4 +1,5 @@
 import type { InputState } from "./types";
+import type { GameplayInputMethod } from "./analytics";
 
 interface InputControllerOptions {
   input: InputState;
@@ -6,7 +7,7 @@ interface InputControllerOptions {
   startButton: HTMLButtonElement;
   restartButton: HTMLButtonElement;
   tiltHint: HTMLElement;
-  onPulse: () => void;
+  onPulse: (inputMethod: GameplayInputMethod) => void;
   onSkipResult: () => boolean;
 }
 
@@ -30,7 +31,7 @@ export class InputController {
   private readonly tiltHint: HTMLElement;
   private readonly tiltHintTitle: HTMLElement;
   private readonly tiltHintBody: HTMLElement;
-  private readonly onPulse: () => void;
+  private readonly onPulse: (inputMethod: GameplayInputMethod) => void;
   private readonly onSkipResult: () => boolean;
   private tiltEnabled = false;
   private tiltPermissionPending = false;
@@ -61,7 +62,7 @@ export class InputController {
     window.addEventListener("orientationchange", this.resetTiltCalibration);
     this.canvas.addEventListener("pointerdown", this.handleCanvasPointerDown);
     this.startButton.addEventListener("click", this.handleStartButtonClick);
-    this.restartButton.addEventListener("click", this.onPulse);
+    this.restartButton.addEventListener("click", () => this.onPulse("pointer"));
   }
 
   /**
@@ -83,7 +84,7 @@ export class InputController {
       .finally(() => {
         this.tiltPermissionPending = false;
         this.startButton.removeAttribute("aria-busy");
-        this.onPulse();
+        this.onPulse("pointer");
       });
   };
 
@@ -95,7 +96,7 @@ export class InputController {
       event.preventDefault();
     }
 
-    this.onPulse();
+    this.onPulse("pointer");
   };
 
   /**
@@ -262,6 +263,19 @@ export class InputController {
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (event.code === "Enter" && this.onSkipResult()) {
       event.preventDefault();
+      return;
+    }
+
+    const eventTarget = event.target;
+    const isInteractiveTarget =
+      eventTarget instanceof HTMLButtonElement ||
+      eventTarget instanceof HTMLInputElement ||
+      eventTarget instanceof HTMLSelectElement ||
+      eventTarget instanceof HTMLTextAreaElement;
+
+    if (event.code === "Space" && !event.repeat && !isInteractiveTarget) {
+      event.preventDefault();
+      this.onPulse("keyboard");
       return;
     }
 

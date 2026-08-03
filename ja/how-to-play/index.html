@@ -1,0 +1,54 @@
+<!doctype html><html lang="ja"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Jellyfish Climbの遊び方 | 操作とスコア</title><meta name="description" content="Jellyfish Climbの操作、拍動タイミング、水の流れ、プランクトン、Time Rate、ゲームオーバー、スマートフォンの傾き操作を説明します。">
+  <link rel="canonical" href="%SITE_URL%/ja/how-to-play/"><link rel="alternate" hreflang="en" href="%SITE_URL%/how-to-play/"><link rel="alternate" hreflang="ja" href="%SITE_URL%/ja/how-to-play/"><link rel="alternate" hreflang="x-default" href="%SITE_URL%/how-to-play/">
+  <meta property="og:type" content="article"><meta property="og:site_name" content="Jellyfish Climb"><meta property="og:title" content="Jellyfish Climbの遊び方"><meta property="og:description" content="基本操作、判定、流れ、得点ルールをまとめたガイド。"><meta property="og:url" content="%SITE_URL%/ja/how-to-play/"><meta property="og:locale" content="ja_JP"><meta property="og:locale:alternate" content="en_US"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Jellyfish Climbの遊び方"><meta name="twitter:description" content="ゲームを始める前に操作と得点ルールを確認できます。"><meta name="application-name" content="Jellyfish Climb"><!-- GOOGLE_SITE_VERIFICATION --><link rel="icon" href="%ROOT_PATH%favicon.svg" type="image/svg+xml"><link rel="manifest" href="%ROOT_PATH%site.webmanifest"><link rel="stylesheet" href="/site.css">
+</head><body class="site-page"><a class="skip-link" href="#main-content">本文へ移動</a><!-- SITE_HEADER --><main class="site-main" id="main-content"><header class="page-header"><p class="site-eyebrow">プレイヤーガイド</p><h1>遊び方</h1><p class="page-header__lead">拍動のタイミング、次の方向、プランクトンを取りに行く時間のバランスを考えて上昇します。</p></header>
+  <section class="guide-visual" aria-labelledby="ja-controls-at-a-glance">
+    <p class="site-eyebrow">動きで確認</p>
+    <h2 id="ja-controls-at-a-glance">拍動・方向・上昇</h2>
+    <ol class="guide-visual__grid">
+      <li class="guide-visual__card">
+        <div class="guide-visual__frame" aria-hidden="true">
+          <svg viewBox="0 0 220 140" focusable="false">
+            <circle class="guide-timing-ring" cx="110" cy="68" r="42"></circle>
+            <g class="guide-timing-jelly"><path class="guide-jelly-bell" d="M79 75C79 52 92 37 110 37C128 37 141 53 141 75C126 83 94 83 79 75Z"></path><path class="guide-tentacle" d="M90 79C87 93 94 101 90 116M110 81C105 96 115 104 110 122M130 79C126 92 134 100 130 115"></path></g>
+            <g class="guide-timing-cursor"><circle cx="177" cy="101" r="13"></circle><path d="M172 91L188 105L181 107L185 116L179 119L175 110L168 114Z"></path></g>
+            <text class="guide-timing-label guide-timing-label--early" x="110" y="132">EARLY</text><text class="guide-timing-label guide-timing-label--perfect" x="110" y="132">PERFECT</text><text class="guide-timing-label guide-timing-label--late" x="110" y="132">LATE</text>
+          </svg>
+        </div>
+        <div class="guide-visual__caption"><span>1</span><div><strong>タイミング</strong><small>リング最大で入力</small></div></div>
+      </li>
+      <li class="guide-visual__card">
+        <div class="guide-steer guide-steer--desktop">
+          <div class="guide-visual__frame" aria-hidden="true"><svg viewBox="0 0 220 140" focusable="false">
+            <rect class="guide-keycap guide-keycap--left" x="20" y="53" width="44" height="44" rx="9"></rect><text class="guide-key guide-key--left" x="34" y="84">A</text><rect class="guide-keycap guide-keycap--right" x="156" y="53" width="44" height="44" rx="9"></rect><text class="guide-key guide-key--right" x="169" y="84">D</text>
+            <path class="guide-turn-arrow" d="M72 44C84 28 98 23 110 23M72 44L74 31M72 44L85 41"></path><path class="guide-turn-arrow" d="M148 44C136 28 122 23 110 23M148 44L146 31M148 44L135 41"></path><g class="guide-aim-jelly"><path class="guide-jelly-bell guide-jelly-bell--small" d="M84 82C84 65 94 54 108 54C122 54 132 66 132 82C120 89 96 89 84 82Z"></path><path class="guide-tentacle guide-tentacle--small" d="M94 86V111M108 88V119M122 86V111"></path></g>
+          </svg></div>
+          <div class="guide-visual__caption"><span>2</span><div><strong>方向</strong><small>A / D</small></div></div>
+        </div>
+        <div class="guide-steer guide-steer--mobile">
+          <div class="guide-visual__frame" aria-hidden="true"><svg viewBox="0 0 220 140" focusable="false">
+            <path class="guide-mobile-tilt-arrow" d="M42 82C49 46 70 24 98 20M42 82L41 64M42 82L58 76"></path><path class="guide-mobile-tilt-arrow" d="M178 82C171 46 150 24 122 20M178 82L179 64M178 82L162 76"></path><g class="guide-mobile-phone"><rect x="82" y="25" width="56" height="94" rx="12"></rect><circle cx="110" cy="105" r="4"></circle><path class="guide-jelly-bell guide-jelly-bell--small" d="M91 78C91 63 99 54 110 54C121 54 129 64 129 78C120 84 100 84 91 78Z"></path><path class="guide-tentacle guide-tentacle--small" d="M99 81V94M110 82V98M121 81V94"></path></g>
+          </svg></div>
+          <div class="guide-visual__caption"><span>2</span><div><strong>方向</strong><small>スマホを傾ける</small></div></div>
+        </div>
+      </li>
+      <li class="guide-visual__card">
+        <div class="guide-visual__frame" aria-hidden="true">
+          <svg viewBox="0 0 220 140" focusable="false">
+            <circle class="guide-collect-glow" cx="28" cy="72" r="19"></circle><circle class="guide-collect-plankton" cx="28" cy="72" r="8"></circle><g class="guide-collect-jelly"><path class="guide-jelly-bell guide-jelly-bell--small" d="M62 77C62 62 70 52 82 52C94 52 102 63 102 77C92 83 72 83 62 77Z"></path><path class="guide-tentacle guide-tentacle--small" d="M70 80V101M82 82V106M94 80V101"></path></g><text class="guide-collect-score" x="55" y="39">+100</text><path class="guide-score-divider" d="M113 20V122"></path>
+            <text class="guide-goal-text" x="165" y="26">GOAL</text><text class="guide-time-title" x="124" y="56">TIME</text><text class="guide-time-value guide-time-value--a" x="124" y="78">60s</text><text class="guide-time-value guide-time-value--b" x="124" y="78">30s</text><path class="guide-rate-arrow" d="M162 72H181M174 65L181 72L174 79"></path><text class="guide-rate-title" x="160" y="97">RATE</text><text class="guide-rate-value guide-rate-value--a" x="154" y="121">233%</text><text class="guide-rate-value guide-rate-value--b" x="154" y="121">166%</text>
+          </svg>
+        </div>
+        <div class="guide-visual__caption"><span>3</span><div><strong>得点</strong><small>プランクトン × Time Rate</small></div></div>
+      </li>
+    </ol>
+  </section>
+  <article class="article-content">
+  <h2>基本操作</h2><table><thead><tr><th>操作</th><th>デスクトップ</th><th>スマートフォン</th></tr></thead><tbody><tr><td>上昇する</td><td>クリックまたはSpace</td><td>プレイ領域をタップ</td></tr><tr><td>左右を狙う</td><td>拍動前にAまたはD</td><td>対応端末を傾ける</td></tr><tr><td>一時停止</td><td colspan="2">ステータス欄のポーズボタン</td></tr></tbody></table>
+  <h2>拍動の判定</h2><p>クラゲの周囲でリングが広がったり縮んだりします。EARLY、PERFECT、LATEの判定が表示され、PERFECTでは最も強く上昇します。</p>
+  <h2>重力と水の流れ</h2><p>何もしなければ重力で沈みます。上向き・下向きの流れは時間で切り替わるので、HUDのFlow表示を見て入力を調整します。</p>
+  <h2>得点</h2><p>動くプランクトンを取ると基本点になります。ゴール時は、残り秒数に基づく100〜300%の整数Time Rateがプランクトン点にかかります。</p><div class="callout"><strong>時間切れ：</strong>制限時間内にゴールできなかった場合、そのプレイのスコアは0です。BestScoreは現在のページセッション中に保持されます。</div>
+  <h2>スマートフォンの注意</h2><p>傾き操作には、端末とブラウザのセンサー対応、HTTPS接続、必要な権限が必要です。アプリ内ブラウザでは制限される場合があります。</p>
+  <div class="site-actions"><a class="site-button" href="%ROOT_PATH%play/" data-play-source="how_to_play_cta">ゲームを開始</a><a class="site-button site-button--secondary" href="%ROOT_PATH%ja/faq/">FAQを見る</a></div>
+</article><aside class="future-ad-placement" data-ad-placement="ja-guide-content-footer" hidden aria-label="広告"></aside></main><!-- SITE_FOOTER --><script type="module" src="/src/site.ts"></script></body></html>

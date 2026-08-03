@@ -1,7 +1,15 @@
 import { InputController } from "./InputController";
 import { buildCurrents, buildMotes, buildPlankton, switchCurrentDirections } from "./Obstacle";
 import { createPlayer } from "./Player";
-import { trackGameOver, trackGameRetry, trackGameStart, trackHighScore } from "./analytics";
+import {
+  trackGameFirstInput,
+  trackGameOver,
+  trackGameProgress,
+  trackGameRetry,
+  trackGameStart,
+  trackHighScore,
+} from "./analytics";
+import type { GameplayInputMethod } from "./analytics";
 import type {
   AudioState,
   CurrentBoost,
@@ -76,6 +84,7 @@ const timerLabel = requireElement<HTMLElement>("timer");
 const statusLabel = requireElement<HTMLElement>("status");
 
 const TIME_LIMIT_SECONDS = 90;
+const GAME_PROGRESS_MILESTONES = [800, 1600, 2400] as const;
 const PLANKTON_SCORE = 100;
 const MIN_TIME_RATE_PERCENT = 100;
 const MAX_TIME_RATE_PERCENT = 300;
@@ -94,6 +103,8 @@ const PULSE_COOLDOWN_SECONDS = 0.14;
 const MAX_TILT_ANGLE = Math.PI * 0.26;
 const TURN_ACCELERATION = 4.4;
 const MAX_ROTATION_SPEED = 1.7;
+const RESPONSIVE_GAMEPLAY_REFERENCE_WIDTH = 560;
+const MIN_RESPONSIVE_GAMEPLAY_SCALE = 0.65;
 const AUDIO_SETTINGS_STORAGE_KEY = "jellyfish-climb-audio-settings-v1";
 
 // Licensed audio is loaded as-is. Do not transform, rewrite, or derive new audio files.
@@ -174,6 +185,9 @@ const state: GameState = {
   currentSwitchInterval: 6,
   currentBoost: "-",
 };
+
+let firstGameplayInputTracked = false;
+let nextProgressMilestoneIndex = 0;
 
 const input: InputState = {
   left: false,
@@ -517,8 +531,10 @@ function resetGame(): void {
   state.pulseGlow = 0;
   state.currentSwitchTimer = state.currentSwitchInterval;
   state.currentBoost = "-";
+  firstGameplayInputTracked = false;
+  nextProgressMilestoneIndex = 0;
   world.currents = buildCurrents(state.targetAltitude, world.width);
-  world.plankton = buildPlankton(world.width);
+  world.plankton = buildPlankton(world.width, getResponsiveGameplayScale());
   world.bubbles = [];
   world.scorePopups = [];
   world.motes = buildMotes(world.width);
@@ -558,6 +574,17 @@ function resizeCanvas(): void {
  */
 function getPlayableWorldWidth(): number {
   return Math.min(1400, Math.max(320, canvas.clientWidth));
+}
+
+/**
+ * 狭い画面でクラゲや取得判定が相対的に大きくなりすぎないよう補正する。
+ * 560px以上では1を返すため、PC・タブレットの従来挙動には影響しない。
+ */
+function getResponsiveGameplayScale(): number {
+  return Math.min(
+    1,
+    Math.max(MIN_RESPONSIVE_GAMEPLAY_SCALE, world.width / RESPONSIVE_GAMEPLAY_REFERENCE_WIDTH)
+  );
 }
 
 /**
@@ -871,7 +898,7 @@ function finishGame(cleared: boolean): void {
  * クリック/タップ/開始/リトライを受け取る入口。
  * プレイ中は次フレームで拍動し、停止中はゲーム開始やリトライに使う。
  */
-function queuePulse(): void {
+function queuePulse(inputMethod: GameplayInputMethod): void {
   if (state.paused) {
     return;
   }
@@ -884,14 +911,19 @@ function queuePulse(): void {
     if (state.finished) {
       resetGame();
       trackGameRetry(state.maxScore);
-      trackGameStart(state.maxScore);
+      trackGameStart(state.maxScore, "retry");
       return;
     }
 
     resetGame();
-    trackGameStart(state.maxScore);
+    trackGameStart(state.maxScore, "new");
     goalBanner.classList.remove("is-clear", "is-game-over", "is-new-record");
     return;
+  }
+
+  if (!firstGameplayInputTracked) {
+    firstGameplayInputTracked = true;
+    trackGameFirstInput(inputMethod, state.timeRemaining, state.bestAltitude);
   }
 
   state.pointerQueued = true;
@@ -906,13 +938,14 @@ function performPulse(): void {
     return;
   }
 
+  const responsiveScale = getResponsiveGameplayScale();
   const timing = getPulseTiming();
   const timingQuality = timing.quality;
   const pulseSpeed = Math.abs(MIN_PULSE_SPEED + (MAX_UPWARD_SPEED - MIN_PULSE_SPEED) * timingQuality);
   const directionX = Math.sin(player.angle);
   const directionY = -Math.cos(player.angle);
   const targetSpeed = directionY * pulseSpeed;
-  const targetSideSpeed = directionX * pulseSpeed * PULSE_SIDE_FORCE;
+  const targetSideSpeed = directionX * pulseSpeed * PULSE_SIDE_FORCE * responsiveScale;
   const bubbleCount = Math.round(6 + timingQuality * 8);
 
   if (player.vy > targetSpeed) {
@@ -925,16 +958,21 @@ function performPulse(): void {
   player.pulseStretch = 0.48 + timingQuality * 0.52;
   state.pulseGlow = 0.45 + timingQuality * 0.55;
 
-  addFloatingText(player.x, player.y - player.radius * 1.2, timing.label, "pulse");
+  addFloatingText(
+    player.x,
+    player.y - player.radius * responsiveScale * 1.2,
+    timing.label,
+    "pulse"
+  );
   playSound(timing.label === "PERFECT" ? sounds.pulsePerfect : sounds.pulseNormal, { cooldown: 0.08 });
 
   for (let index = 0; index < bubbleCount; index += 1) {
     world.bubbles.push({
-      x: player.x + (Math.random() - 0.5) * 24,
-      y: player.y + 16 + Math.random() * 24,
+      x: player.x + (Math.random() - 0.5) * 24 * responsiveScale,
+      y: player.y + (16 + Math.random() * 24) * responsiveScale,
       vx: (Math.random() - 0.5) * 40,
       vy: -(40 + Math.random() * 90),
-      radius: Math.random() * 6 + 2,
+      radius: (Math.random() * 6 + 2) * responsiveScale,
       life: 0.9 + Math.random() * 0.7,
     });
   }
@@ -946,6 +984,7 @@ function performPulse(): void {
  */
 function update(deltaTime: number): void {
   const dt = Math.min(deltaTime, 0.033);
+  const responsiveScale = getResponsiveGameplayScale();
 
   // 音量設定中は描画だけを保ち、タイマー・物理・入力処理を止める。
   if (state.paused) {
@@ -982,7 +1021,7 @@ function update(deltaTime: number): void {
 
   // 一定時間ごとに水流の上下方向を反転し、単調なルート固定を避ける。
   if (state.currentSwitchTimer <= 0) {
-    switchCurrentDirections(world.currents);
+    switchCurrentDirections(world.currents, world.width);
     state.currentSwitchTimer = state.currentSwitchInterval;
   }
 
@@ -991,8 +1030,8 @@ function update(deltaTime: number): void {
   const steer = keyboardSteer !== 0 ? keyboardSteer : input.tilt;
   if (steer !== 0) {
     player.angularVelocity += steer * TURN_ACCELERATION * dt;
-    if (player.vx * steer < SIDE_DRIFT_MAX_SPEED) {
-      player.vx += steer * SIDE_DRIFT_ACCELERATION * dt;
+    if (player.vx * steer < SIDE_DRIFT_MAX_SPEED * responsiveScale) {
+      player.vx += steer * SIDE_DRIFT_ACCELERATION * responsiveScale * dt;
     }
     player.heading = steer;
   } else {
@@ -1019,7 +1058,8 @@ function update(deltaTime: number): void {
   }
 
   // 入力がない時の揺らぎ、重力による沈下、速度の減衰をまとめて適用する。
-  const idleWobble = Math.sin(state.time * 2.4 + player.swayPhase) * 12;
+  const idleWobble =
+    Math.sin(state.time * 2.4 + player.swayPhase) * 12 * responsiveScale;
   player.vx += idleWobble * dt;
   player.vy += 74 * dt;
   player.vx *= 0.986;
@@ -1069,7 +1109,8 @@ function update(deltaTime: number): void {
     item.y = item.baseY + Math.cos(state.time * item.swimSpeed * 0.72 + item.phase) * item.bobRadius;
 
     const distance = Math.hypot(player.x - item.x, player.y - item.y);
-    if (distance < player.radius + item.radius + 8) {
+    const collectionRadius = (player.radius + item.radius + 8) * responsiveScale;
+    if (distance < collectionRadius) {
       item.taken = true;
       state.planktonScore += PLANKTON_SCORE;
       state.score += PLANKTON_SCORE;
@@ -1097,11 +1138,12 @@ function update(deltaTime: number): void {
 
   // 速度制限、座標更新、左右端での跳ね返りを最後にまとめて反映する。
   player.vy = Math.max(player.vy, MAX_UPWARD_SPEED);
-  player.vx = Math.max(-MAX_SIDE_SPEED, Math.min(MAX_SIDE_SPEED, player.vx));
+  const maxSideSpeed = MAX_SIDE_SPEED * responsiveScale;
+  player.vx = Math.max(-maxSideSpeed, Math.min(maxSideSpeed, player.vx));
   player.x += player.vx * dt;
   player.y += player.vy * dt;
 
-  const boundary = world.width / 2 - 70;
+  const boundary = world.width / 2 - 70 * responsiveScale;
   if (player.x < -boundary) {
     player.x = -boundary;
     player.vx *= -0.2;
@@ -1112,6 +1154,11 @@ function update(deltaTime: number): void {
 
   // 高度とカメラを更新し、ゴール到達または時間切れなら即座に終了する。
   state.bestAltitude = Math.max(state.bestAltitude, -player.y);
+  const nextMilestone = GAME_PROGRESS_MILESTONES[nextProgressMilestoneIndex];
+  if (nextMilestone !== undefined && state.bestAltitude >= nextMilestone) {
+    trackGameProgress(nextMilestone, state.timeRemaining, state.planktonScore);
+    nextProgressMilestoneIndex += 1;
+  }
   const desiredCameraY = player.y - canvas.clientHeight * 0.2;
   state.cameraY += (desiredCameraY - state.cameraY) * Math.min(1, dt * 1.9);
 
@@ -1278,6 +1325,8 @@ function renderMotes(): void {
  * 未取得のプランクトンを発光付きで描画する。
  */
 function renderPlankton(): void {
+  const responsiveScale = getResponsiveGameplayScale();
+
   for (const item of world.plankton) {
     if (item.taken) {
       continue;
@@ -1290,17 +1339,25 @@ function renderPlankton(): void {
     }
 
     const pulse = 0.55 + Math.sin(state.time * 3.2 + item.phase) * 0.18;
-    const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, item.radius * 3.5);
+    const itemRadius = item.radius * responsiveScale;
+    const gradient = ctx.createRadialGradient(
+      point.x,
+      point.y,
+      0,
+      point.x,
+      point.y,
+      itemRadius * 3.5
+    );
     gradient.addColorStop(0, `rgba(255, 250, 186, ${0.95 * pulse})`);
     gradient.addColorStop(1, "rgba(255, 250, 186, 0)");
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, item.radius * 3.5, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, itemRadius * 3.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = `rgba(255, 245, 163, ${0.8 + pulse * 0.2})`;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, item.radius, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, itemRadius, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -1371,6 +1428,7 @@ function renderBubbles(): void {
  */
 function renderJellyfish(): void {
   const point = worldToScreen(player.x, player.y);
+  const responsiveScale = getResponsiveGameplayScale();
   const stretch = player.pulseStretch;
   const bellHeight = player.radius * (1.18 - stretch * 0.38);
   const bellWidth = player.radius * (1 + stretch * 0.24);
@@ -1378,7 +1436,8 @@ function renderJellyfish(): void {
   const sway = Math.sin(state.time * 3.1) * 8;
 
   ctx.save();
-  ctx.translate(point.x + sway, point.y);
+  ctx.translate(point.x + sway * responsiveScale, point.y);
+  ctx.scale(responsiveScale, responsiveScale);
   ctx.rotate(player.angle + driftTilt);
 
   // 拍動直後の発光と、クリックタイミングを読むためのリングを描く。
@@ -1543,7 +1602,7 @@ export function initializeGame(): void {
   inputController.bind();
   resizeCanvas();
   world.currents = buildCurrents(state.targetAltitude, world.width);
-  world.plankton = buildPlankton(world.width);
+  world.plankton = buildPlankton(world.width, getResponsiveGameplayScale());
   world.motes = buildMotes(world.width);
   updateHud();
   render();
